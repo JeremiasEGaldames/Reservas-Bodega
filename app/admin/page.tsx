@@ -392,20 +392,23 @@ export default function AdminDashboard() {
             "Eliminar Horario",
             "¿Estás seguro de que deseas eliminar este horario? Se eliminará toda la disponibilidad asociada.",
             async () => {
-                console.log("Attempting to delete slot:", id);
-                const { error, count } = await supabase.from('disponibilidad').delete({ count: 'exact' }).eq('id', id)
-                console.log("Delete response:", { error, count });
+                const toastId = toast.loading('Eliminando horario...')
+                try {
+                    const { error } = await supabase.from('disponibilidad').delete().eq('id', id)
 
-                if (error) {
-                    console.error('Error deleting slot:', error)
-                    toast.error('Error al eliminar', { description: error.message })
-                } else if (count === 0) {
-                    toast.error('No se pudo eliminar', { description: 'El horario no existe o no tienes permisos.' })
-                } else {
+                    if (error) throw error
+
+                    toast.success('Horario Eliminado', {
+                        description: 'La disponibilidad se ha eliminado correctamente.',
+                        id: toastId
+                    })
                     fetchDailyData()
                     closeModal()
-                    toast.success('Horario Eliminado', {
-                        description: 'La disponibilidad se ha eliminado correctamente.'
+                } catch (e: any) {
+                    console.error('Error deleting slot:', e)
+                    toast.error('Error al eliminar', {
+                        description: e.message,
+                        id: toastId
                     })
                 }
             }
@@ -449,23 +452,29 @@ export default function AdminDashboard() {
             return
         }
 
-        console.log("Updating cupos for:", id);
-        const { error, count } = await supabase.from('disponibilidad').update({
-            cupos_totales: newTotal,
-            cupos_disponibles: newAvailable
-        }, { count: 'exact' }).eq('id', id)
-        console.log("Update cupos response:", { error, count });
+        const toastId = toast.loading('Actualizando cupos...')
+        try {
+            console.log("Updating cupos for:", id);
+            const { error } = await supabase.from('disponibilidad').update({
+                cupos_totales: newTotal,
+                cupos_disponibles: newAvailable
+            }).eq('id', id)
 
-        if (error) {
-            toast.error('Error al actualizar', { description: error.message })
-        } else if (count === 0) {
-            toast.error('No se pudo actualizar', { description: 'Registro no encontrado o sin permisos.' })
-        } else {
+            if (error) throw error
+
+            toast.success('Cupos Actualizados', { id: toastId })
             fetchDailyData()
+        } catch (e: any) {
+            console.error(e)
+            toast.error('Error al actualizar', {
+                description: e.message,
+                id: toastId
+            })
         }
     }
 
     const handleUpdateIdioma = async (id: number, newIdioma: string) => {
+        const toastId = toast.loading('Actualizando idioma...')
         try {
             console.log("Updating idioma for:", id, newIdioma);
             const { error, count } = await supabase.from('disponibilidad').update({
@@ -479,6 +488,7 @@ export default function AdminDashboard() {
             fetchDailyData()
             toast.success('Idioma Actualizado', {
                 description: `El idioma del turno ha sido cambiado a ${newIdioma}.`,
+                id: toastId,
                 duration: 3000,
                 style: {
                     background: '#fdf2f8',
@@ -488,7 +498,8 @@ export default function AdminDashboard() {
             })
         } catch (e: any) {
             toast.error('Error al actualizar', {
-                description: e.message
+                description: e.message,
+                id: toastId
             })
         }
     }
