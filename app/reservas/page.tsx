@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useState, Suspense } from 'react'
 import { supabase, Disponibilidad } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isBefore, startOfDay } from 'date-fns'
