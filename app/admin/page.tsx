@@ -25,7 +25,8 @@ import {
     AlertCircle,
     TrendingUp,
     ArrowLeft,
-    Bell
+    Bell,
+    RefreshCw
 } from 'lucide-react'
 import { Toaster, toast } from 'sonner'
 import { twMerge } from 'tailwind-merge'
@@ -490,6 +491,8 @@ export default function AdminDashboard() {
                                 setIsAddingSlot={setIsAddingSlot}
                                 handleDeleteReserva={handleDeleteReserva}
                                 setCurrentView={setCurrentView}
+                                onRefresh={fetchDailyData}
+                                loading={loading}
                             />
                         </div>
                     )}
@@ -674,7 +677,7 @@ function Header({ currentView, selectedDate, setSelectedDate, searchTerm, setSea
     )
 }
 
-function HomeView({ dailyStats, visitas, disponibilidad, searchTerm, setIsAddingSlot, handleDeleteReserva, setCurrentView }: any) {
+function HomeView({ dailyStats, visitas, disponibilidad, searchTerm, setIsAddingSlot, handleDeleteReserva, setCurrentView, onRefresh, loading }: any) {
     return (
         <>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -728,7 +731,17 @@ function HomeView({ dailyStats, visitas, disponibilidad, searchTerm, setIsAdding
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[600px]">
                     <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                        <h3 className="font-bold text-gray-800 text-lg">Huéspedes del Día</h3>
+                        <div className="flex items-center gap-3">
+                            <h3 className="font-bold text-gray-800 text-lg">Huéspedes del Día</h3>
+                            <button
+                                onClick={onRefresh}
+                                className="p-2 text-gray-400 hover:text-wine-600 hover:bg-wine-50 rounded-full transition-all active:scale-95"
+                                title="Actualizar lista"
+                                disabled={loading}
+                            >
+                                <RefreshCw size={18} className={cn("transition-all", loading && "animate-spin")} />
+                            </button>
+                        </div>
                         <span className="text-xs text-gray-500 bg-white border px-2 py-1 rounded-md shadow-sm">
                             {visitas.length} reservas
                         </span>
