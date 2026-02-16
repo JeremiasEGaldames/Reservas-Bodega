@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Loader2 } from 'lucide-react'
@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react'
 // Rutas que NO necesitan autenticación (Solo Login)
 const PUBLIC_ROUTES = ['/login']
 
-export default function AuthGuard({ children }: { children: React.ReactNode }) {
+function AuthGuardContent({ children }: { children: React.ReactNode }) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -77,4 +77,16 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     return <>{children}</>
+}
+
+export default function AuthGuard({ children }: { children: React.ReactNode }) {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <Loader2 className="animate-spin text-wine-600" size={40} />
+            </div>
+        }>
+            <AuthGuardContent>{children}</AuthGuardContent>
+        </Suspense>
+    )
 }

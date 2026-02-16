@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { supabase, Disponibilidad } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isBefore, startOfDay } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -22,7 +22,9 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
-export default function ReservasPage() {
+export const dynamic = 'force-dynamic'
+
+function ReservasContent() {
     const [loading, setLoading] = useState(true)
     const [submitting, setSubmitting] = useState(false)
     const [fechas, setFechas] = useState<Disponibilidad[]>([])
@@ -437,5 +439,17 @@ export default function ReservasPage() {
                 </div>
             </main>
         </div>
+    )
+}
+
+export default function ReservasPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <Loader2 className="animate-spin text-wine-600" size={40} />
+            </div>
+        }>
+            <ReservasContent />
+        </Suspense>
     )
 }
