@@ -26,7 +26,8 @@ export default function LoginPage() {
 
             if (error) throw error
 
-            router.push('/admin')
+            const returnUrl = new URLSearchParams(window.location.search).get('returnUrl')
+            router.push(returnUrl || '/dashboard')
             router.refresh()
         } catch (err: any) {
             console.error('Login error:', err)
