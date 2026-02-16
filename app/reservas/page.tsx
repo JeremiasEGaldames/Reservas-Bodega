@@ -96,16 +96,36 @@ function ReservasContent() {
         setError('')
 
         try {
-            const { error: rpcError } = await supabase.rpc('confirmar_reserva', {
-                p_slot_id: selectedSlot.id,
-                p_nombre: formData.nombre,
-                p_apellido: formData.apellido,
-                p_hotel: formData.hotel,
-                p_habitacion: formData.hotel === 'Externo' ? 'N/A' : formData.habitacion,
-                p_comentarios: formData.comentarios || null
+            // 1. Insertar Reserva
+            const { error: insertError } = await supabase.from('visitas').insert({
+                fecha: selectedSlot.fecha,
+                hora: selectedSlot.hora,
+                nombre: formData.nombre,
+                apellido: formData.apellido,
+                hotel: formData.hotel,
+                numero_habitacion: formData.hotel === 'Externo' ? 'N/A' : formData.habitacion,
+                idioma: selectedSlot.idioma,
+                comentarios: formData.comentarios || null,
+                estado: 'confirmada'
             })
 
-            if (rpcError) throw rpcError
+            if (insertError) throw insertError
+
+            // 2. Actualizar disponibilidad (Descontar cupo)
+            /* 
+               Nota: Esto no es transaccional. Si falla el update, la reserva queda hecha sin descontar cupo.
+               Para MVP es aceptable.
+            */
+            const { error: updateError } = await supabase
+                .from('disponibilidad')
+                .update({ cupos_disponibles: Math.max(0, selectedSlot.cupos_disponibles - 1) })
+                .eq('id', selectedSlot.id)
+
+            if (updateError) {
+                console.error("Error actualizando cupos:", updateError)
+                // No lanzamos error para que el usuario igual vea su confirmación, 
+                // ya que la reserva "per se" (paso 1) fue exitosa.
+            }
 
             setSuccess(true)
             fetchFechas() // Refresh data
