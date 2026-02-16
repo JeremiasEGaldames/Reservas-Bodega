@@ -1,4 +1,5 @@
 'use client'
+export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, Suspense } from 'react'
 import { supabase, Disponibilidad } from '@/lib/supabase'
@@ -23,7 +24,6 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
-export const dynamic = 'force-dynamic'
 
 function ReservasContent() {
     const [loading, setLoading] = useState(true)
