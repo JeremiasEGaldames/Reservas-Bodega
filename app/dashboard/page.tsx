@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { CalendarDays, Settings, LogOut, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
