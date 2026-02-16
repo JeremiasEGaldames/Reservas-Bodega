@@ -394,9 +394,19 @@ export default function AdminDashboard() {
             async () => {
                 const toastId = toast.loading('Eliminando horario...')
                 try {
+                    console.log("[ADMIN] Iniciando borrado para ID:", id);
                     const { error } = await supabase.from('disponibilidad').delete().eq('id', id)
 
-                    if (error) throw error
+                    if (error) {
+                        console.error("[ADMIN] ERROR AL BORRAR:", {
+                            code: error.code,
+                            message: error.message,
+                            details: error.details,
+                            hint: error.hint
+                        });
+                        throw error
+                    }
+                    console.log("[ADMIN] Borrado exitoso");
 
                     toast.success('Horario Eliminado', {
                         description: 'La disponibilidad se ha eliminado correctamente.',

@@ -53,8 +53,19 @@ function ReservasContent() {
         fetchFechas()
 
         // Realtime Subscription
+        // Realtime Subscription with specific DELETE handler
         const channel = supabase.channel('realtime_reservas')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'disponibilidad' }, () => {
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'disponibilidad' }, () => {
+                console.log('Realtime: INSERT detectado')
+                fetchFechas(true)
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'disponibilidad' }, () => {
+                console.log('Realtime: UPDATE detectado')
+                fetchFechas(true)
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'disponibilidad' }, (payload) => {
+                console.log('Realtime: DELETE detectado', payload)
+                // Forzamos actualización inmediata
                 fetchFechas(true)
             })
             .subscribe()
