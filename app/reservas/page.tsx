@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useState, Suspense } from 'react'
 import { supabase, Disponibilidad } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isBefore, startOfDay } from 'date-fns'
@@ -17,7 +15,8 @@ import {
     ChevronRight,
     Clock,
     Phone,
-    Mail
+    Mail,
+    RefreshCw
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -26,6 +25,7 @@ export const dynamic = 'force-dynamic'
 
 function ReservasContent() {
     const [loading, setLoading] = useState(true)
+    const [isRefreshing, setIsRefreshing] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [fechas, setFechas] = useState<Disponibilidad[]>([])
     const [success, setSuccess] = useState(false)
@@ -49,15 +49,27 @@ function ReservasContent() {
 
     useEffect(() => {
         fetchFechas()
+
+        // Realtime Subscription
+        const channel = supabase.channel('realtime_reservas')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'disponibilidad' }, () => {
+                fetchFechas(true)
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [])
 
-    const fetchFechas = async () => {
-        setLoading(true)
+    const fetchFechas = async (isBackgroundRefresh = false) => {
+        if (!isBackgroundRefresh) setLoading(true)
+        else setIsRefreshing(true)
+
         try {
             let data: Disponibilidad[] = []
 
             // Auto-generar fechas si faltan (Server-side logic via RPC or manual check)
-            // For safety, we just fetch what's there. RPC call 'ensure_future_availability' is good if exists.
             const { error: rpcError } = await supabase.rpc('ensure_future_availability', { days_ahead: 60 })
             if (rpcError) console.warn("RPC ensure_future_availability failed or missing", rpcError)
 
@@ -67,17 +79,25 @@ function ReservasContent() {
                 .select('*')
                 .eq('habilitado', true)
                 .gte('fecha', today)
-                .gt('cupos_disponibles', 0)
+                // .gt('cupos_disponibles', 0) // REMOVED: Fetch all to show "Agotado" state
                 .order('fecha', { ascending: true })
 
             if (error) throw error
             data = result || []
             setFechas(data)
+
+            // Si el slot seleccionado se actualizó (ej: cups bajaron a 0), actualizarlo
+            if (selectedSlot) {
+                const updatedSlot = data.find(s => s.id === selectedSlot.id)
+                if (updatedSlot) setSelectedSlot(updatedSlot)
+            }
+
         } catch (err) {
             console.error('Error cargando fechas', err)
-            setError('No se pudieron cargar las fechas disponibles.')
+            if (!isBackgroundRefresh) setError('No se pudieron cargar las fechas disponibles.')
         } finally {
             setLoading(false)
+            setIsRefreshing(false)
         }
     }
 
@@ -89,6 +109,11 @@ function ReservasContent() {
         e.preventDefault()
         if (!selectedSlot) {
             setError("Por favor seleccione una fecha y horario.")
+            return
+        }
+
+        if (selectedSlot.cupos_disponibles <= 0) {
+            setError("Lo sentimos, no hay cupos disponibles momentáneamente para este horario.")
             return
         }
 
@@ -109,13 +134,13 @@ function ReservasContent() {
                 estado: 'confirmada'
             })
 
-            if (insertError) throw insertError
+            if (insertError) {
+                // Humanize Errors
+                if (insertError.code === '23505') throw new Error('Ya existe una reserva idéntica registrada.')
+                throw insertError
+            }
 
             // 2. Actualizar disponibilidad (Descontar cupo)
-            /* 
-               Nota: Esto no es transaccional. Si falla el update, la reserva queda hecha sin descontar cupo.
-               Para MVP es aceptable.
-            */
             const { error: updateError } = await supabase
                 .from('disponibilidad')
                 .update({ cupos_disponibles: Math.max(0, selectedSlot.cupos_disponibles - 1) })
@@ -123,8 +148,6 @@ function ReservasContent() {
 
             if (updateError) {
                 console.error("Error actualizando cupos:", updateError)
-                // No lanzamos error para que el usuario igual vea su confirmación, 
-                // ya que la reserva "per se" (paso 1) fue exitosa.
             }
 
             setSuccess(true)
@@ -146,7 +169,6 @@ function ReservasContent() {
         const end = endOfMonth(currentMonth)
         const days = eachDayOfInterval({ start, end })
 
-        // Padding for first week
         const startDayOfWeek = start.getDay() // 0 = Sunday
         const padding = Array(startDayOfWeek).fill(null)
 
@@ -158,8 +180,12 @@ function ReservasContent() {
         return fechas.filter(f => f.fecha === dateStr)
     }
 
+    // Check availability > 0 for at least one slot? 
+    // Or just check if slots exist (even if full)?
+    // The calendar dot should probably reflect if there are *available* slots.
     const hasAvailability = (date: Date) => {
-        return getSlotsForDate(date).length > 0
+        const slots = getSlotsForDate(date)
+        return slots.some(s => s.cupos_disponibles > 0)
     }
 
     if (success) {
@@ -208,7 +234,17 @@ function ReservasContent() {
             </div>
 
             <main className="max-w-3xl mx-auto px-4 sm:px-6 -mt-16 relative z-20 pb-20">
-                <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
+                <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 relative">
+                    {/* Refresh Button */}
+                    <button
+                        onClick={() => fetchFechas(false)}
+                        disabled={loading || isRefreshing}
+                        className="absolute top-4 right-4 p-2 text-gray-400 hover:text-wine-600 hover:bg-wine-50 rounded-full transition-all z-30"
+                        title="Actualizar disponibilidad"
+                    >
+                        <RefreshCw size={20} className={cn("transition-all", (loading || isRefreshing) && "animate-spin")} />
+                    </button>
+
                     <div className="p-6 md:p-10">
                         {error && (
                             <div className="bg-red-50 border border-red-100 text-red-700 p-4 rounded-xl flex items-center gap-3 mb-8 animate-in slide-in-from-top-2">
@@ -280,30 +316,47 @@ function ReservasContent() {
                                         <Clock className="w-4 h-4 text-wine-600" /> Horarios Disponibles
                                     </label>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                        {getSlotsForDate(selectedDate).map(slot => (
-                                            <button
-                                                key={slot.id}
-                                                type="button"
-                                                onClick={() => setSelectedSlot(slot)}
-                                                className={cn(
-                                                    "p-3 rounded-xl border text-left transition-all relative overflow-hidden group",
-                                                    selectedSlot?.id === slot.id
-                                                        ? "border-wine-600 bg-wine-50 text-wine-900 ring-1 ring-wine-600"
-                                                        : "border-gray-200 bg-white hover:border-wine-300"
-                                                )}
-                                            >
-                                                <span className="block text-lg font-bold">{slot.hora.slice(0, 5)}</span>
-                                                <span className="text-xs text-gray-500 uppercase font-medium tracking-wide flex items-center gap-1">
-                                                    <Globe size={10} /> {slot.idioma}
-                                                </span>
-                                                {selectedSlot?.id === slot.id && (
-                                                    <div className="absolute top-2 right-2 text-wine-600">
-                                                        <CheckCircle size={16} />
+                                        {getSlotsForDate(selectedDate).map(slot => {
+                                            const isFull = slot.cupos_disponibles <= 0
+                                            return (
+                                                <button
+                                                    key={slot.id}
+                                                    type="button"
+                                                    disabled={isFull}
+                                                    onClick={() => !isFull && setSelectedSlot(slot)}
+                                                    className={cn(
+                                                        "p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col gap-1",
+                                                        selectedSlot?.id === slot.id
+                                                            ? "border-wine-600 bg-wine-50 text-wine-900 ring-1 ring-wine-600"
+                                                            : isFull
+                                                                ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
+                                                                : "border-gray-200 bg-white hover:border-wine-300"
+                                                    )}
+                                                >
+                                                    <div className="flex justify-between items-center w-full">
+                                                        <span className="block text-lg font-bold">{slot.hora.slice(0, 5)}</span>
+                                                        {selectedSlot?.id === slot.id && (
+                                                            <CheckCircle size={16} className="text-wine-600" />
+                                                        )}
                                                     </div>
-                                                )}
-                                            </button>
-                                        ))}
+
+                                                    <div className="flex justify-between items-center text-xs w-full">
+                                                        <span className="text-gray-500 uppercase font-medium tracking-wide flex items-center gap-1">
+                                                            <Globe size={10} /> {slot.idioma}
+                                                        </span>
+                                                        <span className={cn("font-medium", isFull ? "text-red-500" : "text-green-600")}>
+                                                            {isFull ? "AGOTADO" : `${slot.cupos_disponibles} lugares`}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            )
+                                        })}
                                     </div>
+                                    {selectedSlot && selectedSlot.cupos_disponibles <= 0 && (
+                                        <div className="text-red-500 text-sm font-bold text-center bg-red-50 p-2 rounded-lg">
+                                            No hay cupos disponibles momentáneamente
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -314,10 +367,10 @@ function ReservasContent() {
                                 </div>
                             )}
 
-                            {/* 4. Guest Details (Only show if Slot Selected) */}
-                            {selectedSlot && (
+                            {/* 4. Guest Details (Only show if Slot Selected AND Available) */}
+                            {selectedSlot && selectedSlot.cupos_disponibles > 0 && (
                                 <div className="space-y-8 pt-8 border-t border-gray-100 animate-in fade-in slide-in-from-top-8">
-
+                                    {/* (Rest of the form input fields omitted for brevity, keeping same logic as before) */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
                                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Nombre</label>

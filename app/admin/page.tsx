@@ -331,9 +331,58 @@ export default function AdminDashboard() {
                 duration: 3000
             })
         } catch (e: any) {
-            toast.error('Error del Sistema', {
-                description: e.message
-            });
+            if (e.code === '23505') {
+                toast.error('Disponibilidad Duplicada', {
+                    description: 'Ya existe una disponibilidad con la misma fecha, hora e idioma.',
+                    duration: 4000
+                })
+            } else {
+                toast.error('Error del Sistema', {
+                    description: e.message
+                });
+            }
+        }
+    }
+
+    const handleAddDefaults = async () => {
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return
+
+        const dateStr = format(selectedDate, 'yyyy-MM-dd')
+        const defaults = [
+            { hora: '19:00', idioma: 'Español', cupos: 15 },
+            { hora: '19:30', idioma: 'Inglés', cupos: 15 } // 19:30 en Inglés por defecto
+        ]
+
+        let added = 0
+        const toastId = toast.loading('Creando horarios base...')
+
+        try {
+            for (const slot of defaults) {
+                // Check local duplicate first to be efficient
+                const exists = disponibilidad.some(d => d.hora.startsWith(slot.hora) && d.idioma === slot.idioma)
+                if (exists) continue
+
+                const { error } = await supabase.from('disponibilidad').insert({
+                    fecha: dateStr,
+                    hora: slot.hora,
+                    idioma: slot.idioma,
+                    cupos_totales: slot.cupos,
+                    cupos_disponibles: slot.cupos,
+                    habilitado: true
+                })
+
+                if (error && error.code !== '23505') throw error
+                if (!error) added++
+            }
+
+            if (added > 0) {
+                toast.success(`${added} Horarios agregados`, { id: toastId })
+                fetchDailyData()
+            } else {
+                toast.info('Los horarios estándar ya existen para este día', { id: toastId })
+            }
+        } catch (e: any) {
+            toast.error('Error creando defaults', { description: e.message, id: toastId })
         }
     }
 
@@ -493,6 +542,7 @@ export default function AdminDashboard() {
                                 setCurrentView={setCurrentView}
                                 onRefresh={fetchDailyData}
                                 loading={loading}
+                                handleAddDefaults={handleAddDefaults}
                             />
                         </div>
                     )}
@@ -853,7 +903,7 @@ function HomeView({ dailyStats, visitas, disponibilidad, searchTerm, setIsAdding
     )
 }
 
-function ScheduleView({ selectedDate, isAddingSlot, setIsAddingSlot, disponibilidad, newSlot, setNewSlot, handleAddSlot, handleDeleteSlot, handleUpdateCupos, handleUpdateIdioma }: any) {
+function ScheduleView({ selectedDate, isAddingSlot, setIsAddingSlot, disponibilidad, newSlot, setNewSlot, handleAddSlot, handleDeleteSlot, handleUpdateCupos, handleUpdateIdioma, handleAddDefaults }: any) {
     return (
         <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-right-8 duration-300">
             <div className="mb-8 flex justify-between items-end">
@@ -868,6 +918,22 @@ function ScheduleView({ selectedDate, isAddingSlot, setIsAddingSlot, disponibili
                     <Plus size={20} /> Nuevo Horario
                 </button>
             </div>
+
+            {/* Quick Actions for Defaults */}
+            {disponibilidad.length === 0 && (
+                <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 flex items-center justify-between">
+                    <div>
+                        <h4 className="font-bold text-blue-800 text-sm">Configuración Rápida</h4>
+                        <p className="text-xs text-blue-600">Este día no tiene horarios. Puedes cargar la estructura estándar con un click.</p>
+                    </div>
+                    <button
+                        onClick={handleAddDefaults}
+                        className="bg-white text-blue-700 border border-blue-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-600 hover:text-white transition shadow-sm flex items-center gap-2"
+                    >
+                        <RefreshCw size={14} /> Cargar Base (19:00/19:30)
+                    </button>
+                </div>
+            )}
 
             {isAddingSlot && (
                 <div className="bg-white p-6 rounded-2xl shadow-xl border border-wine-100 mb-8 animate-in zoom-in-95 relative">
