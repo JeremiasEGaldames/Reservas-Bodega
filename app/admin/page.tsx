@@ -410,11 +410,15 @@ export default function AdminDashboard() {
 
                     console.log("[ADMIN] Borrado exitoso");
 
+                    // Actualización Optimista del Estado Local
+                    setDisponibilidad(prev => prev.filter(item => item.id !== id))
+
                     toast.success('Horario Eliminado', {
                         description: 'Confirmado por la base de datos.',
                         id: toastId
                     })
 
+                    // Aseguramos consistencia con el servidor
                     fetchDailyData()
                     closeModal()
                 } catch (e: any) {
