@@ -64,8 +64,8 @@ function ReservasContent() {
                 fetchFechas(true)
             })
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'disponibilidad' }, (payload) => {
-                console.log('Realtime: DELETE detectado', payload)
-                // Forzamos actualización inmediata
+                console.log('Realtime: DELETE detectado - Forzando actualización...', payload)
+                // REFRESH FORZADO: Garantizar que la vista sea idéntica a BD
                 fetchFechas(true)
             })
             .subscribe()

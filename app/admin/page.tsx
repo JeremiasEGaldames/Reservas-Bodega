@@ -417,8 +417,9 @@ export default function AdminDashboard() {
                 } catch (e: any) {
                     console.error('Error deleting slot:', e)
                     toast.error('Error al eliminar', {
-                        description: e.message,
-                        id: toastId
+                        description: 'No se pudo eliminar el horario en la base de datos.',
+                        id: toastId,
+                        duration: 5000
                     })
                 }
             }
