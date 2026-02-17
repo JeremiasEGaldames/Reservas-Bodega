@@ -198,7 +198,9 @@ function ReservasContent() {
     // The calendar dot should probably reflect if there are *available* slots.
     const hasAvailability = (date: Date) => {
         const slots = getSlotsForDate(date)
-        return slots.some(s => s.cupos_disponibles > 0)
+        // Show day as active if there are ANY slots scheduled, even if full.
+        // This allows users to see "Agotado" status instead of a disabled date.
+        return slots.length > 0
     }
 
     if (success) {
@@ -328,45 +330,52 @@ function ReservasContent() {
                                     <label className="block text-sm font-bold text-wine-900 uppercase tracking-wider flex items-center gap-2">
                                         <Clock className="w-4 h-4 text-wine-600" /> Horarios Disponibles
                                     </label>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                        {getSlotsForDate(selectedDate).map(slot => {
-                                            const isFull = slot.cupos_disponibles <= 0
-                                            return (
-                                                <button
-                                                    key={slot.id}
-                                                    type="button"
-                                                    disabled={isFull}
-                                                    onClick={() => !isFull && setSelectedSlot(slot)}
-                                                    className={cn(
-                                                        "p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col gap-1",
-                                                        selectedSlot?.id === slot.id
-                                                            ? "border-wine-600 bg-wine-50 text-wine-900 ring-1 ring-wine-600"
-                                                            : isFull
-                                                                ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
-                                                                : "border-gray-200 bg-white hover:border-wine-300"
-                                                    )}
-                                                >
-                                                    <div className="flex justify-between items-center w-full">
-                                                        <span className="block text-lg font-bold">{slot.hora.slice(0, 5)}</span>
-                                                        {selectedSlot?.id === slot.id && (
-                                                            <CheckCircle size={16} className="text-wine-600" />
+                                    {getSlotsForDate(selectedDate).length === 0 ? (
+                                        <div className="text-gray-500 text-sm text-center py-8 bg-gray-50 rounded-xl border border-gray-100 italic animate-in fade-in zoom-in-95">
+                                            No hay turnos programados para esta fecha.
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 animate-in fade-in stagger-100">
+                                            {getSlotsForDate(selectedDate).sort((a, b) => a.hora.localeCompare(b.hora)).map(slot => {
+                                                const isFull = slot.cupos_disponibles <= 0
+                                                return (
+                                                    <button
+                                                        key={slot.id}
+                                                        type="button"
+                                                        disabled={isFull}
+                                                        onClick={() => !isFull && setSelectedSlot(slot)}
+                                                        className={cn(
+                                                            "p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col gap-1",
+                                                            selectedSlot?.id === slot.id
+                                                                ? "border-wine-600 bg-wine-50 text-wine-900 ring-1 ring-wine-600"
+                                                                : isFull
+                                                                    ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
+                                                                    : "border-gray-200 bg-white hover:border-wine-300 hover:shadow-sm"
                                                         )}
-                                                    </div>
+                                                    >
+                                                        <div className="flex justify-between items-center w-full">
+                                                            <span className="block text-lg font-bold">{slot.hora.slice(0, 5)}</span>
+                                                            {selectedSlot?.id === slot.id && (
+                                                                <CheckCircle size={16} className="text-wine-600" />
+                                                            )}
+                                                        </div>
 
-                                                    <div className="flex justify-between items-center text-xs w-full">
-                                                        <span className="text-gray-500 uppercase font-medium tracking-wide flex items-center gap-1">
-                                                            <Globe size={10} /> {slot.idioma}
-                                                        </span>
-                                                        <span className={cn("font-medium", isFull ? "text-red-500" : "text-green-600")}>
-                                                            {isFull ? "AGOTADO" : `${slot.cupos_disponibles} lugares`}
-                                                        </span>
-                                                    </div>
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
+                                                        <div className="flex justify-between items-center text-xs w-full">
+                                                            <span className="text-gray-500 uppercase font-medium tracking-wide flex items-center gap-1">
+                                                                <Globe size={10} /> {slot.idioma}
+                                                            </span>
+                                                            <span className={cn("font-medium", isFull ? "text-red-500" : "text-green-600")}>
+                                                                {isFull ? "AGOTADO" : `${slot.cupos_disponibles} lugares`}
+                                                            </span>
+                                                        </div>
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+
                                     {selectedSlot && selectedSlot.cupos_disponibles <= 0 && (
-                                        <div className="text-red-500 text-sm font-bold text-center bg-red-50 p-2 rounded-lg">
+                                        <div className="text-red-500 text-sm font-bold text-center bg-red-50 p-2 rounded-lg border border-red-100 animate-pulse">
                                             No hay cupos disponibles momentáneamente
                                         </div>
                                     )}
