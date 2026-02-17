@@ -392,7 +392,7 @@ export default function AdminDashboard() {
             "Eliminar Horario",
             "¿Estás seguro de que deseas eliminar este horario? Se eliminará toda la disponibilidad asociada.",
             async () => {
-                const toastId = toast.loading('Eliminando horario...')
+                const toastId = toast.loading('Eliminando de la base de datos...')
                 try {
                     console.log("[ADMIN] Iniciando borrado para ID:", id);
                     const { error } = await supabase.from('disponibilidad').delete().eq('id', id)
@@ -404,22 +404,24 @@ export default function AdminDashboard() {
                             details: error.details,
                             hint: error.hint
                         });
+                        alert(`ERROR CRÍTICO: No se pudo eliminar de la base de datos. Motivo: ${error.message}`);
                         throw error
                     }
+
                     console.log("[ADMIN] Borrado exitoso");
 
                     toast.success('Horario Eliminado', {
-                        description: 'La disponibilidad se ha eliminado correctamente.',
+                        description: 'Confirmado por la base de datos.',
                         id: toastId
                     })
+
                     fetchDailyData()
                     closeModal()
                 } catch (e: any) {
                     console.error('Error deleting slot:', e)
-                    toast.error('Error al eliminar', {
-                        description: 'No se pudo eliminar el horario en la base de datos.',
-                        id: toastId,
-                        duration: 5000
+                    toast.error('Falló la eliminación', {
+                        description: 'La operación fue rechazada por el servidor.',
+                        id: toastId
                     })
                 }
             }
