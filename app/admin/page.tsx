@@ -251,7 +251,6 @@ export default function AdminDashboard() {
                 .from('disponibilidad')
                 .select('*')
                 .eq('fecha', dateStr)
-                .eq('habilitado', true)
                 .order('hora', { ascending: true })
                 .order('idioma', { ascending: true })
 
