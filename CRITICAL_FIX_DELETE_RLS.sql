@@ -1,22 +1,30 @@
--- EJECUTAR INMEDIATAMENTE EN SUPABASE SQL EDITOR
--- Esto soluciona el problema de que los horarios borrados "reaparecen" (permisos denegados).
+-- ============================================================
+-- CRITICAL_FIX_DELETE_RLS.sql
+-- Solución para error crítico de persistencia en eliminaciones
+-- ============================================================
 
--- Asegurar que Row Level Security está activo
-ALTER TABLE disponibilidad ENABLE ROW LEVEL SECURITY;
+-- 1. Asegurar que el RLS permita el borrado al usuario autenticado (ADMIN)
+ALTER TABLE public.disponibilidad ENABLE ROW LEVEL SECURITY;
 
--- Eliminar polĂ­ticas restrictivas anteriores que pudieran impedir el borrado
-DROP POLICY IF EXISTS "Permitir borrado total a autenticados" ON disponibilidad;
-DROP POLICY IF EXISTS "Permitir todo a autenticados" ON disponibilidad;
-DROP POLICY IF EXISTS "Enable delete for admin only" ON disponibilidad;
+-- Eliminar políticas conflictivas previas
+DROP POLICY IF EXISTS "Acceso total administradores" ON public.disponibilidad;
+DROP POLICY IF EXISTS "admin_delete_disponibilidad" ON public.disponibilidad; 
+DROP POLICY IF EXISTS "admin_update_disponibilidad" ON public.disponibilidad;
+DROP POLICY IF EXISTS "admin_insert_disponibilidad" ON public.disponibilidad;
 
--- CREAR POLÍTICA PERMISIVA PARA ADMINS (Authenticated)
--- Permite SELECT, INSERT, UPDATE, DELETE sin restricciones para usuarios logueados.
-CREATE POLICY "Permitir borrado total a autenticados" 
-ON disponibilidad 
+-- Crear política de ACCESO TOTAL para autenticados (simplificado para evitar bloqueos)
+-- Nota: En producción idealmente se verificaría el rol admin, pero para solucionar
+-- el bloqueo crítico actual, permitimos a 'authenticated' realizar las bajas.
+CREATE POLICY "Acceso total administradores" ON public.disponibilidad 
 FOR ALL 
 TO authenticated 
 USING (true) 
 WITH CHECK (true);
 
--- VerificaciĂłn:
+-- 2. Activar Identidad de Réplica FULL
+-- Esto es CRÍTICO para que el evento DELETE envíe el registro completo al cliente
+-- y el frontend pueda identificar qué ID se eliminó en tiempo real.
+ALTER TABLE public.disponibilidad REPLICA IDENTITY FULL;
+
+-- Confirmación
 SELECT * FROM pg_policies WHERE tablename = 'disponibilidad';

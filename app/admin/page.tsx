@@ -251,6 +251,7 @@ export default function AdminDashboard() {
                 .from('disponibilidad')
                 .select('*')
                 .eq('fecha', dateStr)
+                .eq('habilitado', true)
                 .order('hora', { ascending: true })
                 .order('idioma', { ascending: true })
 
@@ -387,47 +388,38 @@ export default function AdminDashboard() {
         }
     }
 
-    const handleDeleteSlot = (id: number) => {
+    const handleDeleteSlot = async (id: number) => {
         confirmAction(
-            "Eliminar Horario",
-            "¿Estás seguro de que deseas eliminar este horario? Se eliminará toda la disponibilidad asociada.",
+            "Deshabilitar Horario",
+            "¿Estás seguro? Este horario dejará de mostrarse en reservas.",
             async () => {
-                const toastId = toast.loading('Eliminando de la base de datos...')
-                try {
-                    console.log("[ADMIN] Iniciando borrado para ID:", id);
-                    const { error } = await supabase.from('disponibilidad').delete().eq('id', id)
+                const toastId = toast.loading('Deshabilitando horario...')
 
-                    if (error) {
-                        console.error("[ADMIN] ERROR AL BORRAR:", {
-                            code: error.code,
-                            message: error.message,
-                            details: error.details,
-                            hint: error.hint
-                        });
-                        alert(`ERROR CRÍTICO: No se pudo eliminar de la base de datos. Motivo: ${error.message}`);
-                        throw error
-                    }
+                // 1. Ejecutar soft delete (deshabilitar) en Supabase
+                const { error } = await supabase
+                    .from('disponibilidad')
+                    .update({ habilitado: false })
+                    .eq('id', id)
 
-                    console.log("[ADMIN] Borrado exitoso");
-
-                    // Actualización Optimista del Estado Local
-                    setDisponibilidad(prev => prev.filter(item => item.id !== id))
-
-                    toast.success('Horario Eliminado', {
-                        description: 'Confirmado por la base de datos.',
-                        id: toastId
-                    })
-
-                    // Aseguramos consistencia con el servidor
-                    fetchDailyData()
+                // 2. Verificar error inmediatamente
+                if (error) {
+                    console.error('Error de Supabase:', error.message)
+                    toast.dismiss(toastId)
+                    alert('No se pudo deshabilitar el horario. Error: ' + error.message)
                     closeModal()
-                } catch (e: any) {
-                    console.error('Error deleting slot:', e)
-                    toast.error('Falló la eliminación', {
-                        description: 'La operación fue rechazada por el servidor.',
-                        id: toastId
-                    })
+                    return
                 }
+
+                // 3. Éxito: Actualizar UI y notificar
+                setDisponibilidad(prev => prev.filter(h => h.id !== id))
+                toast.success('Horario deshabilitado', {
+                    description: 'Ya no aparecerá en las reservas.',
+                    id: toastId
+                })
+
+                // 4. Refrescar datos para asegurar consistencia
+                fetchDailyData()
+                closeModal()
             }
         )
     }

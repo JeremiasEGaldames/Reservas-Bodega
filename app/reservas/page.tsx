@@ -134,33 +134,43 @@ function ReservasContent() {
         setError('')
 
         try {
-            // 1. Insertar Reserva
-            const { error: insertError } = await supabase.from('visitas').insert({
-                fecha: selectedSlot.fecha,
-                hora: selectedSlot.hora,
-                nombre: formData.nombre,
-                apellido: formData.apellido,
-                hotel: formData.hotel,
-                numero_habitacion: formData.hotel === 'Externo' ? 'N/A' : formData.habitacion,
-                idioma: selectedSlot.idioma,
-                comentarios: formData.comentarios || null,
-                estado: 'confirmada'
+            // Reserva atómica vía RPC: valida, lockea, inserta y decrementa en una transacción
+            const { data, error: rpcError } = await supabase.rpc('create_booking_atomic', {
+                p_slot_id: selectedSlot.id,
+                p_nombre: formData.nombre.trim(),
+                p_apellido: formData.apellido.trim(),
+                p_hotel: formData.hotel,
+                p_habitacion: formData.hotel === 'Externo' ? (formData.habitacion || 'N/A') : formData.habitacion,
+                p_idioma: selectedSlot.idioma || 'Español',
+                p_comentarios: formData.comentarios || null
             })
 
-            if (insertError) {
-                // Humanize Errors
-                if (insertError.code === '23505') throw new Error('Ya existe una reserva idéntica registrada.')
-                throw insertError
+            if (rpcError) {
+                console.error('RPC error:', rpcError)
+                throw new Error('Error de conexión al procesar la reserva. Inténtalo de nuevo.')
             }
 
-            // 2. Actualizar disponibilidad (Descontar cupo)
-            const { error: updateError } = await supabase
-                .from('disponibilidad')
-                .update({ cupos_disponibles: Math.max(0, selectedSlot.cupos_disponibles - 1) })
-                .eq('id', selectedSlot.id)
+            // La función retorna JSONB: { success, error?, code?, visit_id? }
+            if (!data?.success) {
+                // Mapear códigos de error a mensajes amigables
+                const errorMessages: Record<string, string> = {
+                    'NO_AVAILABILITY': 'Lo sentimos, no hay cupos disponibles para este horario. Otro usuario pudo haber reservado el último lugar.',
+                    'PAST_DATE': 'No se pueden hacer reservas para fechas pasadas.',
+                    'SLOT_DISABLED': 'Este horario no está habilitado actualmente.',
+                    'SLOT_NOT_FOUND': 'El horario seleccionado ya no existe. Intenta refrescar la página.',
+                    'MISSING_NAME': 'El nombre es obligatorio.',
+                    'MISSING_LASTNAME': 'El apellido es obligatorio.',
+                    'MISSING_HOTEL': 'Debe seleccionar un hotel.',
+                    'MISSING_ROOM': 'La habitación o contacto es obligatorio.',
+                    'DUPLICATE_BOOKING': 'Ya existe una reserva idéntica registrada.',
+                    'INTERNAL_ERROR': 'Error inesperado. Por favor intenta de nuevo.'
+                }
 
-            if (updateError) {
-                console.error("Error actualizando cupos:", updateError)
+                const friendlyMessage = data?.code
+                    ? (errorMessages[data.code] || data.error || 'Error desconocido.')
+                    : (data?.error || 'Error al procesar la reserva.')
+
+                throw new Error(friendlyMessage)
             }
 
             setSuccess(true)
