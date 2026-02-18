@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase, Disponibilidad } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isBefore, startOfDay } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -26,6 +27,7 @@ import { cn } from '@/lib/utils'
 
 
 function ReservasContent() {
+    const router = useRouter()
     const [loading, setLoading] = useState(true)
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [submitting, setSubmitting] = useState(false)
@@ -48,6 +50,17 @@ function ReservasContent() {
         idioma: 'Español', // Default
         comentarios: '' // New field
     })
+
+    // ⭐ SEGURIDAD: Verificar sesión antes de mostrar el formulario
+    useEffect(() => {
+        const verifyAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) {
+                router.push('/login?returnUrl=/reservas')
+            }
+        }
+        verifyAuth()
+    }, [router])
 
     useEffect(() => {
         fetchFechas()
